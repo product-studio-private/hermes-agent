@@ -6,11 +6,17 @@
 # Everything is wired from the profile's .env — see .env.EXAMPLE.
 
 model:
-  provider: custom
+  provider: snoopy-llm
   default: "${SNOOPY_MODEL}"
-  base_url: "${SNOOPY_MODEL_BASE_URL}"
-  key_env: ABLITERATION_API_KEY
   api_mode: chat_completions
+
+# Named OpenAI-compatible endpoint. A bare `provider: custom` never resolves
+# credentials from .env on this Hermes version — a named providers entry does.
+providers:
+  snoopy-llm:
+    api: "${SNOOPY_MODEL_BASE_URL}"
+    key_env: ABLITERATION_API_KEY
+    api_mode: chat_completions
   # The machine acts through tools, not prose: a non-streaming endpoint is
   # acceptable, so don't pin streaming here — Hermes auto-falls back if the
   # endpoint's SSE path is broken.
