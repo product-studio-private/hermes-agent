@@ -1,0 +1,108 @@
+# Snoopy golden-machine profile config.
+#
+# One Hermes profile per machine. The model is an OpenAI-compatible endpoint
+# (abliteration.ai by default, any stub via SNOOPY_MODEL_BASE_URL) and the only
+# execution surface is the remote Snoopy MCP server plus safe web tools.
+# Everything is wired from the profile's .env — see .env.EXAMPLE.
+
+model:
+  provider: snoopy-llm
+  default: "${SNOOPY_MODEL}"
+  api_mode: chat_completions
+
+# Named OpenAI-compatible endpoint. A bare `provider: custom` never resolves
+# credentials from .env on this Hermes version — a named providers entry does.
+providers:
+  snoopy-llm:
+    api: "${SNOOPY_MODEL_BASE_URL}"
+    key_env: ABLITERATION_API_KEY
+    api_mode: chat_completions
+  # The machine acts through tools, not prose: a non-streaming endpoint is
+  # acceptable, so don't pin streaming here — Hermes auto-falls back if the
+  # endpoint's SSE path is broken.
+
+# Side-LLM work (compression, titles, approvals, MCP help) rides the same
+# endpoint — `provider: auto` otherwise falls back to the bundled Nous route,
+# which this machine has no credential for ("Nous auxiliary client unavailable").
+auxiliary:
+  vision: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  compression: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  skills_hub: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  approval: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  mcp: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  title_generation: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  review: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  memory_query_rewrite: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  tts_audio_tags: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  triage_specifier: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  kanban_decomposer: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  profile_describer: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  goal_judge: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  curator: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  monitor: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  background_review: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  moa_reference: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  moa_aggregator: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+
+# The per-user Snoopy MCP server. URL and token resolve from .env; an unset
+# SNOOPY_MCP_URL stays a literal placeholder and fails loudly at connect time —
+# that is intentional (fail closed, never silently tool-less).
+mcp_servers:
+  snoopy:
+    url: "${SNOOPY_MCP_URL}"
+    headers:
+      Authorization: "Bearer ${SNOOPY_MCP_TOKEN}"
+    timeout: 30
+    connect_timeout: 10
+
+# Tool Search (progressive disclosure) is for MCP/plugin surfaces big enough to
+# tax the context window. Snoopy's surface is small and fixed — keep every tool
+# eager so the model calls them directly, no tool_search hop.
+tools:
+  tool_search:
+    enabled: "off"
+
+# Per-platform allowlists: anywhere this profile can take a turn, the model sees
+# exactly web tools (web_search + web_extract) and the snoopy_* MCP tools.
+platform_toolsets:
+  cli: [web, snoopy]
+  cron: [web, snoopy]
+  api_server: [web, snoopy]
+  webhook: [web, snoopy]
+
+# Global denylist, subtracted last for EVERY platform (including any adapter an
+# operator adds later whose default composite would otherwise grant them).
+# Snoopy has no terminal, file, browser, code-execution, delegation, or
+# computer-use surface — and no housekeeping tools either (the spec's tool set
+# is MCP + safe web tools, nothing else).
+agent:
+  disabled_toolsets:
+    - terminal
+    - file
+    - browser
+    - code_execution
+    - computer_use
+    - delegation
+    - connections
+    - vision
+    - video
+    - image_gen
+    - video_gen
+    - x_search
+    - tts
+    - stt
+    - session_search
+    - kanban
+    - spotify
+    - discord
+    - discord_admin
+    - yuanbao
+    - cronjob
+    - clarify
+    - todo
+    - skills
+    - memory
+
+# Cron scheduler runs inside `hermes gateway` (the installed service); the
+# shipped jobs arrive paused. Nothing else is pinned: compression, aux models
+# and prompt caching all follow the main endpoint.

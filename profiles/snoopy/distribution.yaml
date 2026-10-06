@@ -1,0 +1,41 @@
+name: snoopy
+version: 0.1.0
+description: >-
+  Snoopy — an autonomous X-watching memecoin trader that reads posts from
+  watched X accounts, forms launch/buy/skip/sell verdicts, and acts on them
+  through the Snoopy MCP server. One profile per machine; the only execution
+  surface is the remote MCP server plus safe web tools.
+hermes_requires: ">=0.21.0"
+author: Magna Carta Studios
+license: MIT
+env_requires:
+  - name: SNOOPY_MCP_URL
+    description: >-
+      Snoopy MCP server URL for this machine's owner (per-user deployment),
+      e.g. https://<snoopy-worker>/mcp.
+    required: true
+  - name: SNOOPY_MCP_TOKEN
+    description: >-
+      Per-user MCP credential. Sent as `Authorization: Bearer <token>` on every
+      MCP call (snoopy_key_... issued by the Snoopy backend).
+    required: true
+  - name: SNOOPY_MODEL
+    description: Model id served by the inference endpoint (e.g. an abliterated chat model).
+    required: true
+  - name: SNOOPY_MODEL_BASE_URL
+    description: >-
+      OpenAI-compatible inference endpoint. Defaults to abliteration.ai;
+      point at a stub/self-hosted endpoint for testing or a different provider.
+    required: true
+    default: "https://api.abliteration.ai/v1"
+  - name: ABLITERATION_API_KEY
+    description: >-
+      API key for the inference endpoint (declared via model.key_env). Any
+      non-empty value works against a no-auth stub endpoint.
+    required: true
+  - name: SNOOPY_WEB_SEARCH_KEY
+    description: >-
+      Optional key for the web_search tool (e.g. TAVILY_API_KEY). Without one,
+      web tools fall back to providers needing no key or stay unavailable;
+      Snoopy still works — only search/extract calls degrade.
+    required: false
