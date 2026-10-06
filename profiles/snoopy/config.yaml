@@ -21,6 +21,29 @@ providers:
   # acceptable, so don't pin streaming here — Hermes auto-falls back if the
   # endpoint's SSE path is broken.
 
+# Side-LLM work (compression, titles, approvals, MCP help) rides the same
+# endpoint — `provider: auto` otherwise falls back to the bundled Nous route,
+# which this machine has no credential for ("Nous auxiliary client unavailable").
+auxiliary:
+  vision: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  compression: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  skills_hub: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  approval: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  mcp: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  title_generation: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  review: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  memory_query_rewrite: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  tts_audio_tags: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  triage_specifier: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  kanban_decomposer: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  profile_describer: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  goal_judge: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  curator: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  monitor: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  background_review: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  moa_reference: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+  moa_aggregator: {provider: snoopy-llm, model: "${SNOOPY_MODEL}"}
+
 # The per-user Snoopy MCP server. URL and token resolve from .env; an unset
 # SNOOPY_MCP_URL stays a literal placeholder and fails loudly at connect time —
 # that is intentional (fail closed, never silently tool-less).
