@@ -1,0 +1,14 @@
+# Profile secrets and runtime state — never ship these in the distribution.
+.env
+auth.json
+memories/
+sessions/
+state.db*
+logs/
+workspace/
+plans/
+home/
+*_cache/
+local/
+backups/
+cache/

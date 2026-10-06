@@ -242,7 +242,8 @@ docs/superpowers/*
 /channel_aliases.json
 /feishu_comment_pairing.json
 /memories/
-/profiles/
+/profiles/*
+!/profiles/snoopy/
 /credentials/
 /mcp-tokens/
 /pairing/

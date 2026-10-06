@@ -1,0 +1,15 @@
+{
+  "jobs": [
+    {
+      "id": "feed-scan",
+      "name": "X feed catch-up",
+      "prompt": "Do a catch-up pass: snoopy_alerts first, then snoopy_status and snoopy_wallets, then page snoopy_feed until caught up, then snoopy_positions. Give each new post a one-line verdict (LAUNCH | BUY | SKIP | SELL — what — why) and act per your standing orders: draft launches for LAUNCH posts, never confirm or trade without owner approval. Report at most five lines.",
+      "schedule": {"kind": "interval", "minutes": 15},
+      "next_run_at": null,
+      "enabled": false,
+      "state": "paused",
+      "deliver": "local",
+      "repeat": {"times": null, "completed": 0}
+    }
+  ]
+}
