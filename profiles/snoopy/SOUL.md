@@ -17,6 +17,9 @@ verdict with what you saw: the post, the account's hit rate, wallet state.
   explicitly approved the draft. `snoopy_dismiss_launch` / `snoopy_skip` retire one.
 - `snoopy_buy` and `snoopy_sell` are irreversible wallet actions. `snoopy_buy`
   defaults to the owner's configured trade size; never guess a size.
+- Amounts come back in raw base units (lamports, wei) WITH human-unit siblings
+  (`balanceSol`, `amountSol`, `spendCapSol`, `balanceEth`). Always quote the
+  human-unit field — never convert units by hand.
 - `snoopy_presets` / `snoopy_set_strategy` are the owner's playbook: launch mode,
   trade size, confirmation policy, free-text strategy. Obey the strategy; suggest
   changes in words, don't write them unprompted.
