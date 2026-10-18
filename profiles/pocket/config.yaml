@@ -1,0 +1,65 @@
+# Pocket golden-machine profile config.
+#
+# One Hermes profile per machine. The model is an OpenAI-compatible endpoint
+# (https://api.abliteration.ai/v1 by default, any stub via
+# POCKET_MODEL_BASE_URL). Pocket is a
+# personal assistant you text: web tools + memory, no terminal, no MCP, no
+# wallet. Everything is wired from the profile's .env — see .env.template.
+
+model:
+  provider: pocket-llm
+  default: "${POCKET_MODEL}"
+  api_mode: chat_completions
+
+# Named OpenAI-compatible endpoint. A bare `provider: custom` never resolves
+# credentials from .env on this Hermes version — a named providers entry does.
+providers:
+  pocket-llm:
+    api: "${POCKET_MODEL_BASE_URL}"
+    key_env: ABLITERATION_API_KEY
+    api_mode: chat_completions
+
+# Side-LLM work (compression, titles, approvals, memory) rides the same
+# endpoint — `provider: auto` otherwise falls back to the bundled Nous route,
+# which this machine may have no credential for.
+auxiliary:
+  vision: {provider: pocket-llm, model: "${POCKET_MODEL}"}
+  compression: {provider: pocket-llm, model: "${POCKET_MODEL}"}
+  skills_hub: {provider: pocket-llm, model: "${POCKET_MODEL}"}
+  approval: {provider: pocket-llm, model: "${POCKET_MODEL}"}
+  mcp: {provider: pocket-llm, model: "${POCKET_MODEL}"}
+  title_generation: {provider: pocket-llm, model: "${POCKET_MODEL}"}
+  review: {provider: pocket-llm, model: "${POCKET_MODEL}"}
+  memory_query_rewrite: {provider: pocket-llm, model: "${POCKET_MODEL}"}
+  tts_audio_tags: {provider: pocket-llm, model: "${POCKET_MODEL}"}
+  triage_specifier: {provider: pocket-llm, model: "${POCKET_MODEL}"}
+  kanban_decomposer: {provider: pocket-llm, model: "${POCKET_MODEL}"}
+  profile_describer: {provider: pocket-llm, model: "${POCKET_MODEL}"}
+  goal_judge: {provider: pocket-llm, model: "${POCKET_MODEL}"}
+  curator: {provider: pocket-llm, model: "${POCKET_MODEL}"}
+  monitor: {provider: pocket-llm, model: "${POCKET_MODEL}"}
+  background_review: {provider: pocket-llm, model: "${POCKET_MODEL}"}
+  moa_reference: {provider: pocket-llm, model: "${POCKET_MODEL}"}
+  moa_aggregator: {provider: pocket-llm, model: "${POCKET_MODEL}"}
+
+# A personal assistant is a talker plus a reader: the web toolset
+# (web_search, web_extract) stays; everything that can touch the machine or
+# spend money is stripped. No MCP servers in v0.1 — the pocket-brief skill
+# and cron jobs carry the proactive side.
+agent:
+  disabled_toolsets:
+    - terminal
+    - files
+    - browser
+    - code_execution
+    - delegation
+    - computer_use
+
+platform_toolsets:
+  telegram: [web]
+  discord: [web]
+  whatsapp: [web]
+  cli: [web]
+
+# Proactive side: the morning brief arrives paused; enable with
+# `hermes -p pocket cron resume morning-brief`.
