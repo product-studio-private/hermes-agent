@@ -3,7 +3,7 @@
 //
 // Static checks + a scripted live Spanish conversation through the same chatTurn
 // path the demo server uses (real abliteration.ai inference), WITH the
-// honesty guard applied the same way the server applies it. The last turn is a
+// honesty sanitizer applied the same way the server applies it. The last turn is a
 // timed-reminder request: it must not surface an uncorrected scheduling or
 // delivery claim (no scheduler exists in this demo).
 //
@@ -11,7 +11,7 @@
 // Deterministic-only variant (no network): node demo/test-honesty.mjs
 
 import { chatTurn, pingProvider } from "./server.mjs";
-import { applyHonestyGuard, detectPromise } from "./honesty.mjs";
+import { sanitizeReply, detectPromise } from "./honesty.mjs";
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
@@ -72,7 +72,7 @@ try {
   console.log(`connection probe: ${pingInfo}`);
 } catch (e) { pingInfo = `error (${e.message})`; }
 
-// 2b. Scripted Spanish conversation through the guarded path. The last turn is
+// 2b. Scripted Spanish conversation through the sanitized path. The last turn is
 // the timed-reminder regression: a promise may appear in model text, but the
 // GUARDED output must carry the honest note — no uncorrected claim survives.
 const SCRIPT = [
@@ -92,19 +92,19 @@ for (const [i, userText] of SCRIPT.entries()) {
   try {
     const turn = await chatTurn(history);
     if (!turn.content) throw new Error("empty reply");
-    const guarded = applyHonestyGuard(turn.content); // same guard the server applies
-    const isReminderTurn = userText.includes("¿me avisas");
-    if (isReminderTurn) {
-      // Regression assertion: no uncorrected scheduling/delivery claim.
-      reminderHonest = guarded.promise === null || guarded.honestyNote !== null;
+    // Same sanitizer the server applies: an unsupported scheduling/delivery
+    // claim is REPLACED with recording-only wording, in the reply AND in the
+    // stored history (sanitized content is what continues the conversation).
+    const sanitized = sanitizeReply(turn.content);
+    if (detectPromise(sanitized.content) !== null) liveOk = false; // invariant, every turn
+    if (userText.includes("¿me avisas")) {
+      // Timed-reminder regression: no scheduling/delivery success claim survives.
+      reminderHonest = detectPromise(sanitized.content) === null;
       if (!reminderHonest) liveOk = false;
-    } else {
-      // Non-reminder turns may still promise; guard must annotate if so.
-      if (guarded.promise !== null && guarded.honestyNote === null) { liveOk = false; }
     }
-    history.push({ role: "assistant", content: turn.content });
-    turns.push({ user: userText, ...turn, guarded });
-    console.log(`  turn ${i + 1}: ${(turn.latencyMs / 1000).toFixed(1)}s · ${turn.content.length} chars · promise: ${guarded.promise ? `"${guarded.promise}" → nota añadida` : "no"}`);
+    history.push({ role: "assistant", content: sanitized.content });
+    turns.push({ user: userText, ...turn, sanitized });
+    console.log(`  turn ${i + 1}: ${(turn.latencyMs / 1000).toFixed(1)}s · ${sanitized.content.length} chars · promise: ${sanitized.promise ? `"${sanitized.promise}" → reescrita` : "no"}`);
   } catch (e) {
     liveOk = false;
     console.error(`  turn ${i + 1} FAILED: ${e.message}`);
@@ -123,15 +123,16 @@ const lines = [
   `- Model: ${process.env.POCKET_MODEL || "abliterated-model-large-v2"}`,
   `- Endpoint: ${process.env.POCKET_MODEL_BASE_URL || "https://api.abliteration.ai/v1"}`,
   `- Connection probe: ${pingInfo}`,
-  `- Mode: LIVE inference (scripted conversation, same code path + honesty guard as demo server)`,
-  `- Timed-reminder regression: ${reminderHonest ? "PASS (no uncorrected scheduling/delivery claim)" : "FAIL"}`,
+  `- Mode: LIVE inference (scripted conversation, same code path + honesty sanitizer as demo server; sanitized text is what the user sees and what is stored)`,
+  `- Timed-reminder regression: ${reminderHonest ? "PASS (no scheduling/delivery claim in the user-visible reply)" : "FAIL"}`,
   "",
 ];
 for (const t of turns) {
   lines.push(`## User: ${t.user}`, "");
   if (t.error) { lines.push(`**ERROR:** ${t.error}`, ""); continue; }
-  lines.push(`**Pocket** (${(t.latencyMs / 1000).toFixed(1)}s · ${t.model} · completion tokens: ${t.usage?.completion_tokens ?? "?"}):`, "", "> " + t.content.replace(/\n/g, "\n> "), "");
-  if (t.guarded?.honestyNote) lines.push(`*Honesty note appended by the app:* **${t.guarded.honestyNote}**`, "");
+  lines.push(`**Pocket (sanitized, user-visible)** (${(t.latencyMs / 1000).toFixed(1)}s · ${t.model} · completion tokens: ${t.usage?.completion_tokens ?? "?"}):`, "", "> " + t.sanitized.content.replace(/\n/g, "\n> "), "");
+  if (t.sanitized?.replaced) lines.push(`*Sanitizer rewrites:* ${t.sanitized.log.join(" ; ")}`, "");
+  lines.push(`*Original model text (not user-visible, not stored in history):* ${t.content.replace(/\n/g, " ")}`, "");
 }
 writeFileSync(path.join(evidenceDir, `transcript-${stamp}.md`), lines.join("\n"));
 
@@ -140,8 +141,8 @@ const staticFail = checks.filter(([s]) => s === "FAIL");
 console.log("");
 for (const [status, name] of checks) console.log(`  ${status === "PASS" ? "✅" : "❌"} ${name}`);
 console.log(`  ${pingOk ? "✅" : "❌"} connection probe (real round-trip, not key presence)`);
-console.log(`  ${liveOk ? "✅" : "❌"} live conversation (4/4 turns, Spanish, non-empty, guard applied)`);
-console.log(`  ${reminderHonest ? "✅" : "❌"} timed-reminder honesty regression (no uncorrected claim)`);
+console.log(`  ${liveOk ? "✅" : "❌"} live conversation (4/4 turns, Spanish, non-empty, sanitized user-visible replies)`);
+console.log(`  ${reminderHonest ? "✅" : "❌"} timed-reminder honesty regression (no claim in user-visible reply)`);
 console.log("");
 if (staticFail.length === 0 && liveOk && reminderHonest && pingOk) {
   console.log(`PASS — evidence written to demo/evidence/transcript-${stamp}.md`);

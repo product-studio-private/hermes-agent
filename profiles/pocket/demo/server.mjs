@@ -21,7 +21,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import os from "node:os";
-import { applyHonestyGuard } from "./honesty.mjs";
+import { sanitizeReply } from "./honesty.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PROFILE_DIR = path.resolve(__dirname, "..");
@@ -137,12 +137,17 @@ const server = http.createServer(async (req, res) => {
     history.push({ role: "user", content: text });
     try {
       const turn = await chatTurn(history);
-      const guarded = applyHonestyGuard(turn.content); // promise → honest note
-      history.push({ role: "assistant", content: turn.content });
+      // Capability honesty: an unsupported scheduling/delivery claim is REPLACED
+      // with recording-only wording. The sanitized content is what the user
+      // sees AND what is stored in history — the false claim never survives
+      // into a later turn. No scheduler exists in this demo, so there is no
+      // success/ack path to claim.
+      const sanitized = sanitizeReply(turn.content);
+      history.push({ role: "assistant", content: sanitized.content });
       json(200, {
-        reply: turn.content,
-        honestyNote: guarded.honestyNote, // set iff the reply promised future delivery
-        promise: guarded.promise,
+        reply: sanitized.content, // sanitized, never the raw promise
+        sanitized: sanitized.replaced, // true iff a claim was rewritten
+        promise: sanitized.promise, // the claim as found in the original
         model: turn.model,
         latencyMs: turn.latencyMs,
         usage: turn.usage,
