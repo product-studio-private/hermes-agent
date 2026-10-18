@@ -74,7 +74,7 @@ export async function chatTurn(history, { maxTokens = 1500 } = {}) {
   const content = (msg.content || "").trim();
   return {
     content,
-    model: out.model,
+    model: out.model || null, // actual reported model or null — never a configured fallback
     usage: out.usage,
     latencyMs: Date.now() - t0,
     finishReason: out.choices?.[0]?.finish_reason,
@@ -88,9 +88,12 @@ export async function pingProvider() {
   const t0 = Date.now();
   try {
     const out = await modelCall([{ role: "user", content: "ping" }], 16);
-    lastPing = { ok: true, latencyMs: Date.now() - t0, model: out.model || MODEL, errorClass: null, at: Date.now() };
+    // Honest model reporting: the actual model the provider returned, or null.
+    // NEVER fall back to the configured model in a verified result.
+    lastPing = { ok: true, latencyMs: Date.now() - t0, model: out.model || null, errorClass: null, at: Date.now() };
   } catch (err) {
-    lastPing = { ok: false, latencyMs: Date.now() - t0, model: MODEL, errorClass: err.errorClass || "unknown", at: Date.now() };
+    // On failure the model stays unknown too — nothing was verified.
+    lastPing = { ok: false, latencyMs: Date.now() - t0, model: null, errorClass: err.errorClass || "unknown", at: Date.now() };
   }
   return lastPing;
 }
@@ -105,9 +108,16 @@ function getSession(id) {
 // ── HTTP server ───────────────────────────────────────────────────────────────
 const server = http.createServer(async (req, res) => {
   const json = (code, obj) => { res.writeHead(code, { "Content-Type": "application/json" }); res.end(JSON.stringify(obj)); };
-  if (req.method === "GET" && (req.url === "/" || req.url === "/index.html")) {
-    res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-    res.end(readFileSync(path.join(__dirname, "index.html")));
+  // Static allowlist: the page and its module imports (nothing else is served).
+  const STATIC = {
+    "/": ["index.html", "text/html; charset=utf-8"],
+    "/index.html": ["index.html", "text/html; charset=utf-8"],
+    "/conn-state.mjs": ["conn-state.mjs", "text/javascript; charset=utf-8"],
+  };
+  if (req.method === "GET" && STATIC[req.url]) {
+    const [file, type] = STATIC[req.url];
+    res.writeHead(200, { "Content-Type": type });
+    res.end(readFileSync(path.join(__dirname, file)));
     return;
   }
   if (req.method === "GET" && req.url === "/api/health") {

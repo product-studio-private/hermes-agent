@@ -60,6 +60,18 @@ const stub = http.createServer((req, res) => {
     req.on("end", () => {
       const { messages } = JSON.parse(body);
       calls.push(messages);
+      // The demo server's connection probe sends exactly one "ping" user
+      // message: answer with a SUCCESS that has NO model field, proving the
+      // server reports null instead of the configured model.
+      if (messages.length === 1 && messages[0]?.content === "ping") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({
+          model: null,
+          choices: [{ message: { role: "assistant", content: "pong" }, finish_reason: "stop" }],
+          usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+        }));
+        return;
+      }
       const step = SCRIPT[Math.min(scriptIdx++, SCRIPT.length - 1)];
       if (step.httpStatus) {
         res.writeHead(step.httpStatus, { "Content-Type": "application/json" });
@@ -117,6 +129,13 @@ const post = (text, sessionId) =>
 
 try {
   if (up) {
+    console.log("0) Connection probe with a missing model reports null — never the configured model");
+    const ping = await fetch(`http://127.0.0.1:${DEMO_PORT}/api/ping`).then((r) => r.json());
+    ok(ping.ok === true, "probe against model-less stub success is ok", JSON.stringify(ping));
+    ok(ping.model === null || ping.model === undefined,
+      "probe reports the actual (missing) model as null — no configured fallback",
+      JSON.stringify(ping));
+
     console.log("1) Timed-reminder turn — the reviewed 'Te aviso' form is sanitized in the HTTP response");
     const t1 = await post("Recuérdame llamar a mi mamá a las 5pm en punto, ¿me avisas?", "path-test");
     ok(t1.status === 200, "turn 1 HTTP 200");

@@ -62,20 +62,22 @@
     <div id="chat" aria-live="polite"></div>
     <div class="typing" id="typing"><span></span><span></span><span></span></div>
     <div class="chips">
-      <button class="chip" onclick="quick('Apúntame: llamar a mi mamá hoy a las 5pm')">Apúntame algo</button>
-      <button class="chip" onclick="quick('Dame el brief de hoy')">Dame el brief de hoy</button>
-      <button class="chip" onclick="quick('¿Qué tengo pendiente?')">¿Qué tengo pendiente?</button>
+      <button class="chip" data-prompt="Apúntame: llamar a mi mamá hoy a las 5pm">Apúntame algo</button>
+      <button class="chip" data-prompt="Dame el brief de hoy">Dame el brief de hoy</button>
+      <button class="chip" data-prompt="¿Qué tengo pendiente?">¿Qué tengo pendiente?</button>
     </div>
-    <form id="f" onsubmit="return send(event)">
+    <form id="f">
       <input id="q" placeholder="Escríbele a Pocket…" autocomplete="off" autofocus>
       <button class="send" type="submit" aria-label="Enviar">➤</button>
     </form>
     <footer>
       <span id="statusLine">conexión: probando… · SMS simulado · sin agenda activa</span>
-      <button onclick="resetChat()">reiniciar</button>
+      <button id="resetBtn">reiniciar</button>
     </footer>
   </div>
-<script>
+<script type="module">
+  import { createConnState, connLabel } from "./conn-state.mjs";
+
   const chat = document.getElementById('chat');
   const typing = document.getElementById('typing');
   const q = document.getElementById('q');
@@ -84,35 +86,19 @@
   const statusLine = document.getElementById('statusLine');
   const sessionId = 's-' + Math.random().toString(36).slice(2, 9);
 
-  // The model name comes ONLY from verified successful calls (probe or chat).
-  // No hardcoded model string: unknown until a real response reports it.
-  let currentModel = null;
-
-  function setConn(state, detail) {
+  // Badge state machine: model comes ONLY from verified successful calls
+  // (probe or chat); a rejected fetch is a failure transition — no stale green.
+  const conn = createConnState((state, info) => {
+    const { chip, status } = connLabel(state, info);
     liveChip.className = 'live ' + state;
-    const modelLabel = currentModel || 'modelo desconocido';
-    if (state === 'ok') {
-      liveText.textContent = 'EN VIVO · ' + modelLabel + (detail ? ' · ' + detail : '');
-      statusLine.textContent = 'conexión: en vivo' + (detail ? ' (' + detail + ')' : '') + ' · ' + modelLabel + ' · SMS simulado · sin agenda activa';
-    } else if (state === 'testing') {
-      liveText.textContent = 'PROBANDO…';
-      statusLine.textContent = 'conexión: probando… · SMS simulado · sin agenda activa';
-    } else if (state === 'fail') {
-      liveText.textContent = 'SIN CONEXIÓN';
-      statusLine.textContent = 'conexión: fallida (' + (detail || 'error') + ') · ' + modelLabel + ' · SMS simulado · sin agenda activa';
-    } else {
-      liveText.textContent = 'NO VERIFICADO';
-      statusLine.textContent = 'conexión: no verificada (sin API key) · SMS simulado · sin agenda activa';
-    }
-  }
-  setConn('testing');
-  fetch('/api/health').then(r => r.json()).then(h => {
-    if (!h.keyPresent) setConn('unverified');
-  }).catch(() => {});
-  fetch('/api/ping').then(r => r.json()).then(p => {
-    if (p.ok) { if (p.model) currentModel = p.model; setConn('ok', (p.latencyMs/1000).toFixed(1) + 's'); }
-    else setConn('fail', p.errorClass || 'error');
-  }).catch(() => setConn('fail', 'red'));
+    liveText.textContent = chip;
+    statusLine.textContent = status;
+  });
+  // Initial PROBANDO… state renders from the static HTML; the first transition
+  // fires when the health/ping calls land.
+
+  fetch('/api/health').then(r => r.json()).then(h => conn.onHealth(h)).catch(() => {});
+  fetch('/api/ping').then(r => r.json()).then(p => conn.onPing(p)).catch(() => conn.onNetworkError());
 
   const now = () => new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' });
   function add(cls, text, meta, extra) {
@@ -127,38 +113,49 @@
     }
     chat.appendChild(d); chat.scrollTop = chat.scrollHeight; return d;
   }
-  function quick(t) { q.value = t; send(); }
-  async function send(ev) {
-    if (ev) ev.preventDefault();
-    const text = q.value.trim(); if (!text) return false;
+  function showErr(msg) {
+    const d = document.createElement('div'); d.className = 'msg err'; d.textContent = '⚠ ' + msg;
+    chat.appendChild(d); chat.scrollTop = chat.scrollHeight;
+  }
+  async function send(text) {
+    text = (text ?? q.value).trim();
+    if (!text) return;
     q.value = '';
     add('user', text, now());
     typing.style.display = 'block'; chat.scrollTop = chat.scrollHeight;
+    let j;
     try {
       const r = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text, sessionId }) });
-      const j = await r.json();
-      if (j.error) {
-        // A failed chat call updates the badge — no stale green label.
-        setConn('fail', j.errorClass || 'error');
-        throw new Error(j.error);
-      }
-      if (j.model) currentModel = j.model; // model actually used by this verified call
-      setConn('ok', j.latencyMs ? (j.latencyMs/1000).toFixed(1) + 's' : null);
-      const meta = (j.latencyMs ? (j.latencyMs/1000).toFixed(1) + 's' : '') + (j.model ? ' · ' + j.model : '');
-      add('bot', j.reply || '(sin respuesta)', meta, j.sanitized ? '✎ ajustado (promesa de recordatorio reescrita)' : null);
+      j = await r.json();
     } catch (e) {
-      const d = document.createElement('div'); d.className = 'msg err'; d.textContent = '⚠ ' + e.message; chat.appendChild(d);
-      chat.scrollTop = chat.scrollHeight;
-    } finally { typing.style.display = 'none'; }
-    return false;
+      // REJECTED fetch or invalid JSON: flip the badge — never a stale green.
+      conn.onNetworkError();
+      showErr('sin conexión con el demo local');
+      typing.style.display = 'none';
+      return;
+    }
+    if (j.error) {
+      // Provider-failure JSON: failure with the error class only (no bodies).
+      conn.onChatError(j.errorClass || 'error');
+      showErr(j.error);
+      typing.style.display = 'none';
+      return;
+    }
+    // Success: re-verify model on EVERY successful call (null clears it).
+    conn.onChatOk(j);
+    const meta = (j.latencyMs ? (j.latencyMs/1000).toFixed(1) + 's' : '') + (j.model ? ' · ' + j.model : '');
+    add('bot', j.reply || '(sin respuesta)', meta, j.sanitized ? '✎ ajustado (promesa de recordatorio reescrita)' : null);
+    typing.style.display = 'none';
   }
-  async function resetChat() {
+  document.getElementById('f').addEventListener('submit', (ev) => { ev.preventDefault(); send(); });
+  document.querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => send(c.dataset.prompt)));
+  document.getElementById('resetBtn').addEventListener('click', async () => {
     await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ reset: true, sessionId }) });
+      body: JSON.stringify({ reset: true, sessionId }) }).catch(() => conn.onNetworkError());
     chat.innerHTML = '';
     add('bot', 'Conversación nueva. ¿Qué te apunto? 🐾 (pendientes quedan grabados aquí; no se envían recordatorios automáticos)', now());
-  }
+  });
   add('bot', '¡Hola! Soy Pocket 🐾 Tu asistente por mensaje. Apunto pendientes y te los muestro cuando me pidas el brief. (Sin agenda activa: no te escribo solo — esto es un demo local.)', now());
 </script>
 </body>
