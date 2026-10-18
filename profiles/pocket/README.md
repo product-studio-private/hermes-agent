@@ -20,6 +20,9 @@ helps with the errands people put off. One profile per machine.
 
 `demo/server.mjs` runs a phone-style chat demo against the same model and
 persona — the content-facing preview of this profile. See `demo/README.md`.
+In the demo, pendings are RECORDED in the chat (no scheduler, no outbound
+delivery); the installed profile's proactive side is the paused Hermes cron
+job, which only counts once Hermes + gateway are installed and it is enabled.
 
 ## Install
 
@@ -32,4 +35,5 @@ hermes -p pocket chat
 
 Live texting (real SMS/WhatsApp delivery) needs a paid phone line and is not
 part of v0.1; today the profile runs on Telegram/Discord/WhatsApp/CLI via the
-Hermes gateway, and the demo simulates the SMS surface locally.
+Hermes gateway, and the demo simulates the SMS surface locally (127.0.0.1
+listener only).
