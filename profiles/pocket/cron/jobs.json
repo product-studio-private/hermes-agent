@@ -1,0 +1,15 @@
+{
+  "jobs": [
+    {
+      "id": "morning-brief",
+      "name": "Morning brief",
+      "prompt": "Deliver today's morning brief per your SOUL: pendings due today first, then anything time-sensitive, then one line naming the single most important thing. Keep it under 10 lines. If nothing is stored, say so and suggest the owner text you today's pendings.",
+      "schedule": {"kind": "daily", "time": "04:00", "timezone": "America/Bogota"},
+      "next_run_at": null,
+      "enabled": false,
+      "state": "paused",
+      "deliver": "local",
+      "repeat": {"times": null, "completed": 0}
+    }
+  ]
+}
